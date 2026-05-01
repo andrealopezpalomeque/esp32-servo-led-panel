@@ -25,6 +25,14 @@ bool blinkOn = true;
 bool ledState = false;
 unsigned long lastBlink = 0;
 
+// === Notify pattern state ===
+bool notifyMode = false;
+int notifyStep = 0;
+unsigned long lastNotify = 0;
+const int NOTIFY_STEPS = 6;
+const int notifyTiming[NOTIFY_STEPS] = {80, 80, 80, 80, 80, 1500};
+const bool notifyLed[NOTIFY_STEPS]   = {true, false, true, false, true, false};
+
 void handleRoot() {
   String html = "<!DOCTYPE html><html><head>";
   html += "<meta charset='UTF-8'>";
@@ -91,6 +99,9 @@ void handleRoot() {
   html += "<button id='ledBtn' onclick='toggleLed()' class='" + String(blinkOn ? "active" : "") + "'>Blink: " + String(blinkOn ? "ON" : "OFF") + "</button>";
   html += "</div>";
   html += "<div class='control'>";
+  html += "<button id='notifyBtn' onclick='toggleNotify()' class='" + String(notifyMode ? "active" : "") + "'>Notify: " + String(notifyMode ? "ON" : "OFF") + "</button>";
+  html += "</div>";
+  html += "<div class='control'>";
   html += "<div class='row'><span class='lbl'>Blink Rate</span><span class='val' id='blinkVal'>" + String(blinkRate) + "<span class='unit'>ms</span></span></div>";
   html += "<input type='range' min='50' max='2000' value='" + String(blinkRate) + "' oninput='setBlink(this.value)'>";
   html += "<div class='tinylabel'><span>strobe</span><span>slow</span></div>";
@@ -108,6 +119,7 @@ void handleRoot() {
   html += "function setBlink(v){fetch('/blink?v='+v);document.getElementById('blinkVal').innerHTML=v+'<span class=\"unit\">ms</span>';}";
   html += "function toggleLed(){fetch('/ledtoggle').then(r=>r.text()).then(t=>{var b=document.getElementById('ledBtn');b.innerHTML='Blink: '+t;b.classList.toggle('active',t==='ON');});}";
   html += "function toggleMode(){fetch('/modetoggle').then(r=>r.text()).then(t=>{var b=document.getElementById('modeBtn');b.innerHTML=t+' Mode';b.classList.toggle('active',t==='Sweep');});}";
+  html += "function toggleNotify(){fetch('/notifytoggle').then(r=>r.text()).then(t=>{var b=document.getElementById('notifyBtn');b.innerHTML='Notify: '+t;b.classList.toggle('active',t==='ON');});}";
   html += "</script>";
 
   html += "</body></html>";
@@ -139,6 +151,17 @@ void handleModeToggle() {
   server.send(200, "text/plain", sweepMode ? "Sweep" : "Manual");
 }
 
+void handleNotifyToggle() {
+  notifyMode = !notifyMode;
+  if (notifyMode) {
+    notifyStep = 0;
+    lastNotify = millis();
+  } else {
+    digitalWrite(LED_PIN, LOW);
+  }
+  server.send(200, "text/plain", notifyMode ? "ON" : "OFF");
+}
+
 void setup() {
   Serial.begin(115200);
   myServo.attach(13);
@@ -159,6 +182,7 @@ void setup() {
   server.on("/blink", handleBlink);
   server.on("/ledtoggle", handleLedToggle);
   server.on("/modetoggle", handleModeToggle);
+  server.on("/notifytoggle", handleNotifyToggle);
   server.begin();
 }
 
@@ -173,7 +197,11 @@ void loop() {
     lastMove = millis();
   }
 
-  if (blinkOn && millis() - lastBlink > blinkRate) {
+  if (notifyMode && millis() - lastNotify > (unsigned long)notifyTiming[notifyStep]) {
+    notifyStep = (notifyStep + 1) % NOTIFY_STEPS;
+    digitalWrite(LED_PIN, notifyLed[notifyStep]);
+    lastNotify = millis();
+  } else if (!notifyMode && blinkOn && millis() - lastBlink > blinkRate) {
     ledState = !ledState;
     digitalWrite(LED_PIN, ledState);
     lastBlink = millis();
