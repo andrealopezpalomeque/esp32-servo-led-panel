@@ -189,6 +189,13 @@ void setup() {
 void loop() {
   server.handleClient();
 
+  if (Serial.available()) {
+    char cmd = Serial.read();
+    if      (cmd == 'W') { notifyMode = false; blinkOn = false; digitalWrite(LED_PIN, HIGH); }
+    else if (cmd == 'N') { notifyMode = true; notifyStep = 0; lastNotify = millis(); blinkOn = false; }
+    else if (cmd == 'O') { notifyMode = false; blinkOn = false; digitalWrite(LED_PIN, LOW); }
+  }
+
   if (sweepMode && millis() - lastMove > sweepSpeed) {
     currentAngle += direction;
     if (currentAngle >= maxAngle) direction = -1;
